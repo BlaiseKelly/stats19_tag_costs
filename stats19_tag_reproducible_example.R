@@ -38,7 +38,7 @@ get_ons_cost_data <- function(
     
     ons_cost_form <- ons_cost[,2:6]
     
-    names(ons_cost_form) <- c("collision_year", "collision_severity", "Urban", "Rural", "Motorway")
+    names(ons_cost_form) <- c("collision_year", "collision_severity", "built_up", "not_built_up", "Motorway")
     
   }
   
@@ -95,10 +95,21 @@ ons_tag <- get_ons_cost_data(sheet2get = "Average_value_road_type") |>
   melt(c("collision_year", "collision_severity"), variable.name = "ons_road", value.name = "cost")
 
 # calculate costs with non adjusted
+# non_adj_tag_check <- cas_non_adj_2024 |> 
+#   inner_join(cra_2024) |> 
+#   select(collision_index,collision_year, Fatal, Serious, Slight, first_road_class, urban_or_rural_area) |> 
+#   mutate(ons_road = if_else(first_road_class == "Motorway", "Motorway", if_else(urban_or_rural_area == "Urban", "Urban", "Rural"))) |> 
+#   select(collision_year,Fatal,Serious,Slight,ons_road) |> 
+#   melt(c("collision_year", "ons_road"),variable.name = "collision_severity",value.name = "casualties") |> 
+#   left_join(ons_tag, by = c("collision_year", "collision_severity", "ons_road")) |> 
+#   filter(casualties > 0) |> 
+#   mutate(total_cost = casualties*cost)
+
 non_adj_tag_check <- cas_non_adj_2024 |> 
   inner_join(cra_2024) |> 
-  select(collision_index,collision_year, Fatal, Serious, Slight, first_road_class, urban_or_rural_area) |> 
-  mutate(ons_road = if_else(first_road_class == "Motorway", "Motorway", if_else(urban_or_rural_area == "Urban", "Urban", "Rural"))) |> 
+  select(collision_index,collision_year, Fatal, Serious, Slight, first_road_class, speed_limit) |> 
+  mutate(speed_limit = as.numeric(speed_limit)) |> 
+  mutate(ons_road = if_else(first_road_class == "Motorway", "Motorway", if_else(speed_limit <= "40", "built_up", "not_built_up"))) |> 
   select(collision_year,Fatal,Serious,Slight,ons_road) |> 
   melt(c("collision_year", "ons_road"),variable.name = "collision_severity",value.name = "casualties") |> 
   left_join(ons_tag, by = c("collision_year", "collision_severity", "ons_road")) |> 
@@ -129,15 +140,26 @@ ons_total_mway <- sum(ons_tag_totals$Motorways)
 ons_total_all <- sum(ons_tag_totals$All_roads)
 
 non_adj_motorway_costs <- sum(non_adj_tag_check[non_adj_tag_check$ons_road == "Motorway",]$cost,na.rm = TRUE)/1e6
-non_adj_total_cost <- sum(non_adj_tag_check$total_cost)/1e6
+non_adj_total_cost <- sum(non_adj_tag_check$total_cost,na.rm = TRUE)/1e6
 
 non_adj_mway_diff <- ons_total_mway-non_adj_motorway_costs
 non_adj_total_diff <- ons_total_all-non_adj_total_cost
 
+# adj_tag_check <- cas_adj_2024 |> 
+#   inner_join(cra_2024) |> 
+#   select(collision_index,collision_year, Fatal = fatal_count, Serious = casualty_adjusted_severity_serious, Slight = casualty_adjusted_severity_slight, first_road_class, urban_or_rural_area) |> 
+#   mutate(ons_road = if_else(first_road_class == "Motorway", "Motorway", if_else(urban_or_rural_area == "Urban", "Urban", "Rural"))) |> 
+#   select(collision_year,Fatal,Serious,Slight,ons_road) |> 
+#   melt(c("collision_year", "ons_road"),variable.name = "collision_severity",value.name = "casualties") |> 
+#   left_join(ons_tag, by = c("collision_year", "collision_severity", "ons_road")) |> 
+#   filter(casualties > 0) |> 
+#   mutate(total_cost = casualties*cost)
+
 adj_tag_check <- cas_adj_2024 |> 
   inner_join(cra_2024) |> 
-  select(collision_index,collision_year, Fatal = fatal_count, Serious = casualty_adjusted_severity_serious, Slight = casualty_adjusted_severity_slight, first_road_class, urban_or_rural_area) |> 
-  mutate(ons_road = if_else(first_road_class == "Motorway", "Motorway", if_else(urban_or_rural_area == "Urban", "Urban", "Rural"))) |> 
+  select(collision_index,collision_year, Fatal = fatal_count, Serious = casualty_adjusted_severity_serious, Slight = casualty_adjusted_severity_slight, first_road_class, speed_limit) |> 
+  mutate(speed_limit = as.numeric(speed_limit)) |> 
+  mutate(ons_road = if_else(first_road_class == "Motorway", "Motorway", if_else(speed_limit <= "40", "built_up", "not_built_up"))) |> 
   select(collision_year,Fatal,Serious,Slight,ons_road) |> 
   melt(c("collision_year", "ons_road"),variable.name = "collision_severity",value.name = "casualties") |> 
   left_join(ons_tag, by = c("collision_year", "collision_severity", "ons_road")) |> 
@@ -147,7 +169,7 @@ adj_tag_check <- cas_adj_2024 |>
 adj_fat_cas_check <- sum(adj_tag_check[adj_tag_check$collision_severity == "Fatal",]$casualties)
 adj_all_cas_check <- sum(adj_tag_check$casualties)
 adj_motorway_costs <- sum(adj_tag_check[adj_tag_check$ons_road == "Motorway",]$cost,na.rm = TRUE)/1e6
-adj_total_cost <- sum(adj_tag_check$total_cost)/1e6
+adj_total_cost <- sum(adj_tag_check$total_cost,na.rm = TRUE)/1e6
 
 adj_mway_diff <- ons_total_mway-adj_motorway_costs
 adj_total_diff <- ons_total_all-adj_total_cost
